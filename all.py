@@ -6,7 +6,7 @@ import color
 from pid import PID
 import math
 
-def correct_turn(img,correct):
+def correct_turn(img,z_correct):
     # 图像预处理
     img = img.to_grayscale()  # 转换为灰度图像
     img.gaussian(1)  # 应用高斯模糊，减少噪声
@@ -317,7 +317,7 @@ correct = 0
 
 direction = 1 #1为正向 -1为反向
 color_num = 0 #默认为零 1为蓝色 2为绿色 3为红色
-mode = 0 #默认为0巡线 1为颜色识别 2为超声波过程
+mode = 0 #默认为0巡线 1为颜色识别 2为超声波过程 3为画图过程 4为置空
 distance = 1000 #默认为1000 超声波距离
 get_drop = 1 #1为爪子上没有物品 -1为爪子上有物品
 counter = 0 #计数器记录经过的障碍物
@@ -370,13 +370,13 @@ while(True):
                     counter = 0
                     mode = 1
                 elif distance < 100 and mode == 3:#具体距离待定
+                    mode = 4
                     car.chassis_control(0,0,0)
                     color.send_draw(color_num)
                     get_drop = (-1)*get_drop
                     if get_drop == 1:
                         counter_final += 1
                     counter = 0
-                    mode = 1
 
             
         
@@ -390,6 +390,8 @@ while(True):
         correct = correct_turn(img,direction)
     elif mode == 3:
         correct = correct_turn(img,direction)
+    elif mode == 4:
+        continue
 
 
 
