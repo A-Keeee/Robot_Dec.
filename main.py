@@ -411,11 +411,11 @@ while(True):
                     print("turn180")
                     mode = 4
                 #未到目标点 转向巡线
-                elif distance < 300 and mode == 0 and counter < color_num and color_num !=3 and get_drop == -1:#具体距离待定
+                elif distance < 300 and mode == 0 and counter < color_num and color_num !=3:#具体距离待定
                     counter = turn_90(direction,counter)
                     mode = 5
                 #未到目标点 转向巡线（放红色）
-                elif color_num == 3 and distance < 230 and mode == 0:#具体距离待定
+                elif color_num == 3 and distance < 300 and mode == 0:#具体距离待定
                     counter = turn_90(direction,counter)
                     counter +=2
                 #掉头完毕到达目标点 停下来进行抓/放
