@@ -53,21 +53,6 @@ def send_color(num):
     except Exception as e:
         print("发送数据时出错:", e)
 
-def read_data():
-    byte = ''
-    if uart.any():
-        data = uart.read(1)  # 读取一个字节
-        if data == b'$':  # 如果读取到了数据头
-            data = b'$'
-            while True:
-                if uart.any():
-                    byte = uart.read(1)
-                    data += byte
-                if byte == b'!':  # 如果读取到了数据尾
-                    return data  # 返回有效数据
-    return None
-
-
 
 # 定义变量
 vlf, vrf, vlb, vrb = 0, 0, 0, 0
