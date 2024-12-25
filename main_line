@@ -446,6 +446,9 @@ def color_detect(img,color_num):
 def line_detect(img,z_correct):
     # 图像预处理
     img = img.to_grayscale()  # 转换为灰度图像
+    img.gaussian(1)  # 应用高斯模糊，减少噪声
+    img.binary([THRESHOLD], invert=True)  # 二值化
+    img = img.erode(1)
 
 
     # 初始化 move_x 和 move_turn
@@ -531,7 +534,7 @@ def line_detect(img,z_correct):
 #        continue
 
     # 设置前进速度，可以根据需要调整或使用 PID 控制
-    x_speed = 500-z_speed # 固定的前进速度，也可以根据需要调整
+    x_speed = 500-0.8*abs(z_speed) # 固定的前进速度，也可以根据需要调整
     if (abs(move_turn_err) != 0) :
         z_correct = move_turn_err/abs(move_turn_err)
 #    print("correct",z_correct)
@@ -620,12 +623,28 @@ distance_aim = 630
 while(True):
     clock.tick()  # 开始记录一帧的时间
     img = sensor.snapshot()  # 拍摄一帧图像
-    correct = line_detect(img, correct)
     flag = color.read_data()
+#    print(flag)
 #    print(color_num)
 #    print("dir",direction)
     if flag != None:
+        try:
+            flag = flag.decode()[1:len(flag)-1]
+        except ValueError:
+            continue
+        if flag[0:8] == "DISTANCE" :
+#            print("test")
+            try:
+                if len(distance_line)==5:
+                    distance_line=distance_line[1:5]
+                distance_line.append(int(flag[8:len(flag)-1]))
+                distance = sum(distance_line)/len(distance_line)
+#                print(distance)
+            except ValueError:
+                continue
+    if mode == 0:
         if distance < 300 :
+            mode = 5
             counter = turn_90(1,counter)
 
 #        if flag == b'$OKKKKK!':
@@ -703,22 +722,23 @@ while(True):
 
 ##    correct = correct_turn(img,direction,redsensor,distance,distance_aim)
 
-#    if mode == 0 :
-#        correct = line_detect(img, correct)
-#    elif mode == 1:
-#        color_num = color_detect(img,color_num)
-#    elif mode == 2: #掉头后进行修正速度为正常的0.5
-#        correct = correct_turn(img,direction,redsensor,distance,distance_aim)
-#    elif mode == 3:
-#        correct = correct_turn(img,direction,redsensor,distance,distance_aim)
-#    elif mode == 4:#掉头后进行修正distance
-#        if distance > 630:
-#            mode =2
-#        continue
-#    elif mode == 5:#转弯后进行修正distance
-#        if distance > 500:
-#            mode =0
-#        continue
+    if mode == 0 :
+        correct = line_detect(img, correct)
+    elif mode == 1:
+        color_num = color_detect(img,color_num)
+    elif mode == 2: #掉头后进行修正速度为正常的0.5
+        correct = correct_turn(img,direction,redsensor,distance,distance_aim)
+    elif mode == 3:
+        correct = correct_turn(img,direction,redsensor,distance,distance_aim)
+    elif mode == 4:#掉头后进行修正distance
+        if distance > 630:
+            mode =2
+        continue
+    elif mode == 5:#转弯后进行修正distance
+        car.chassis_control(0,0,0)
+        if distance > 300:
+            mode =0
+        continue
 
 
 

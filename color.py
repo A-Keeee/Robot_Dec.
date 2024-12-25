@@ -4,8 +4,16 @@ import time  # 用于延时
 # 初始化 UART
 # 根据您的硬件选择正确的 UART 端口和波特率
 # 对于 OpenMV RT，请注释掉 UART(3) 并使用 UART(1)
-uart = UART(1, 9600)   # OpenMV RT 注释掉这一行，用下一行 UART(1)
+uart = UART(1, 115200)   # OpenMV RT 注释掉这一行，用下一行 UART(1)
 # uart = UART(1, 19200)  # OpenMV RT 用 UART(1)，对应 P4-TX P5-RX
+def send_x(x):
+    try:
+        # 使用 struct 打包三个 int16，采用小端字节序
+        packed_data = b'$ARMAIM' + struct.pack('<h', x) + b'!'
+        uart.write(packed_data)
+        print('发送数据:', packed_data)
+    except Exception as e:
+        print("发送数据时出错:", e)
 
 def send_color(num):
     try:
