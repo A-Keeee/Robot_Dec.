@@ -7,252 +7,6 @@ from pid import PID
 import math
 
 
-# ================== 自定义 array 类定义 ==================
-
-class array:
-    def __init__(self, M: list):
-        self.M = M
-        self.shape = self.get_shape()
-        self.ndim = len(self.shape)
-
-    def __len__(self):
-        return len(self.M)
-
-    def __getitem__(self, *args):
-        if isinstance(args[0], tuple):
-            assert len(args[0]) <= self.ndim, 'Index out of range'
-            indices = list(args[0])
-            def get_value(a, num):
-                if len(indices) - 1 == num:
-                    return a[indices[num]]
-                return get_value(a[indices[num]], num + 1)
-            return get_value(self.M, 0)
-        elif isinstance(args[0], int):
-            return self.M[args[0]]
-
-    def get_shape(self):
-        shape = []
-        def get_len(a):
-            try:
-                shape.append(len(a))
-                get_len(a[0])
-            except:
-                pass
-        get_len(self.M)
-        return tuple(shape)
-
-    def __add__(self, other):
-        assert self.ndim == 2 and other.ndim == 2 and self.shape == other.shape, 'Addition requires two 2D arrays of the same shape'
-        rows, cols = self.shape
-        return array([[self[i][j] + other[i][j] for j in range(cols)] for i in range(rows)])
-
-    def __sub__(self, other):
-        assert self.ndim == 2 and other.ndim == 2 and self.shape == other.shape, 'Subtraction requires two 2D arrays of the same shape'
-        rows, cols = self.shape
-        return array([[self[i][j] - other[i][j] for j in range(cols)] for i in range(rows)])
-
-    def __mul__(self, other):
-        if isinstance(other, (int, float)):
-            return array([[self[i][j] * other for j in range(self.shape[1])] for i in range(self.shape[0])])
-        assert self.ndim == 2 and other.ndim == 2, 'Multiplication requires two 2D arrays'
-        rows_a, cols_a = self.shape
-        rows_b, cols_b = other.shape
-        assert cols_a == rows_b, 'Cannot multiply: Incompatible dimensions'
-        result = [[0 for _ in range(cols_b)] for _ in range(rows_a)]
-        for i in range(rows_a):
-            for j in range(cols_b):
-                for k in range(cols_a):
-                    result[i][j] += self[i][k] * other[k][j]
-        return array(result)
-
-    @property
-    def T(self):
-        assert self.ndim == 2, 'Transpose requires a 2D array'
-        rows, cols = self.shape
-        transposed = [[self[j][i] for j in range(rows)] for i in range(cols)]
-        return array(transposed)
-
-    def det(self):
-        shape = self.shape
-        assert self.ndim == 2 and shape[0] == shape[1], 'Determinant requires a square matrix'
-        n = shape[0]
-        m = [row[:] for row in self.M]  # Deep copy
-        det = 1
-        for col in range(n):
-            # Find the pivot
-            pivot = m[col][col]
-            pivot_row = col
-            for row in range(col + 1, n):
-                if abs(m[row][col]) > abs(pivot):
-                    pivot = m[row][col]
-                    pivot_row = row
-            if pivot == 0:
-                return 0
-            if pivot_row != col:
-                # Swap rows
-                m[col], m[pivot_row] = m[pivot_row], m[col]
-                det *= -1
-            det *= m[col][col]
-            # Eliminate below
-            for row in range(col + 1, n):
-                factor = m[row][col] / m[col][col]
-                for k in range(col, n):
-                    m[row][k] -= factor * m[col][k]
-        return det
-
-    def inv(self):
-        shape = self.shape
-        assert self.det() != 0, 'Matrix is not invertible'
-        n = shape[0]
-        m = [row[:] for row in self.M]  # Deep copy
-        I = [[1 if i == j else 0 for j in range(n)] for i in range(n)]
-        for col in range(n):
-            # Find the pivot
-            pivot = m[col][col]
-            pivot_row = col
-            for row in range(col + 1, n):
-                if abs(m[row][col]) > abs(pivot):
-                    pivot = m[row][col]
-                    pivot_row = row
-            if pivot == 0:
-                raise ValueError('Matrix is not invertible')
-            if pivot_row != col:
-                # Swap rows in both m and I
-                m[col], m[pivot_row] = m[pivot_row], m[col]
-                I[col], I[pivot_row] = I[pivot_row], I[col]
-            # Normalize the pivot row
-            pivot = m[col][col]
-            m[col] = [element / pivot for element in m[col]]
-            I[col] = [element / pivot for element in I[col]]
-            # Eliminate other rows
-            for row in range(n):
-                if row != col:
-                    factor = m[row][col]
-                    m[row] = [m[row][k] - factor * m[col][k] for k in range(n)]
-                    I[row] = [I[row][k] - factor * I[col][k] for k in range(n)]
-        return array(I)
-
-    def __str__(self):
-        return str(self.M)
-
-    @staticmethod
-    def eye(size, value=1):
-        M = [[value if i == j else 0 for j in range(size)] for i in range(size)]
-        return array(M)
-
-    @staticmethod
-    def zeros(shape: tuple):
-        return array([[0 for _ in range(shape[1])] for _ in range(shape[0])])
-
-    @staticmethod
-    def ones(shape: tuple):
-        return array([[1 for _ in range(shape[1])] for _ in range(shape[0])])
-
-    # 解线性方程组 Ax = B
-    @staticmethod
-    def solve(A, B):
-        if A.det() == 0:
-            raise ValueError("No solution exists")
-        inv_A = A.inv()
-        return inv_A * B
-
-# ================== Tracker1D 类定义（1D 卡尔曼滤波器） ==================
-
-class Tracker1D:
-    def __init__(self, A, H, Q, R, ID, lose_threshold=20, motion_trail_len=10):
-        """
-        初始化 Tracker1D 实例
-        A: 状态转移矩阵，array 实例，尺寸 2x2
-        H: 观测矩阵，array 实例，尺寸 1x2
-        Q: 过程噪声协方差矩阵，array 实例，尺寸 2x2
-        R: 观测噪声协方差矩阵，array 实例，尺寸 1x1
-        ID: 追踪器的唯一标识
-        lose_threshold: 多少帧后认为目标丢失
-        motion_trail_len: 运动轨迹长度
-        """
-        self.A = A  # 状态转移矩阵
-        self.H = H  # 观测矩阵
-        self.Q = Q  # 过程噪声协方差
-        self.R = R  # 观测噪声协方差
-        self.ID = ID
-        self.lose_threshold = lose_threshold
-        self.motion_trail_len = motion_trail_len
-
-        self.P = array.eye(2)  # 误差协方差矩阵（初始化为单位矩阵）
-        self.active = 0
-        self.updated = False  # 是否在该帧已经更新了的标志位
-        self.last_X_posterior = None  # 状态向量 [position, velocity]
-        self.motion_trail_measure = []
-        self.motion_trail_pre = []
-
-    def __call__(self, measurement, find):
-        if find:
-            self.add_motion_trail_measure(measurement)
-            if self.active == 0:
-                # 初始化状态向量
-                self.last_X_posterior = array([[measurement], [0]])  # 初始速度设为0
-                self.active = self.lose_threshold
-                self.updated = True
-                return measurement
-            else:
-                dt = 1  # 时间间隔，可以根据实际情况调整
-                # 更新状态转移矩阵 A 中的时间步长
-                self.A.M[0][1] = dt
-                # 预测
-                X_prior = self.A * self.last_X_posterior  # A * X_prev
-                P_prior = self.A * self.P * self.A.T + self.Q  # A * P * A^T + Q
-
-                # 计算卡尔曼增益 K = P_prior * H^T * inv(H * P_prior * H^T + R)
-                H_T = self.H.T  # H^T
-                S = self.H * P_prior * H_T + self.R  # H * P_prior * H^T + R
-                try:
-                    S_inv = S.inv()
-                except:
-                    S_inv = array.eye(1)  # 如果不可逆，使用单位矩阵代替
-
-                K = P_prior * H_T * S_inv  # P_prior * H^T * S_inv
-
-                # 更新
-                Y = array([[measurement]])  # 观测值
-                H_X_prior = self.H * X_prior  # H * X_prior
-                Z = Y - H_X_prior  # 观测残差
-                self.last_X_posterior = X_prior + K * Z  # X_posterior = X_prior + K * Z
-                self.P = (array.eye(2) - K * self.H) * P_prior  # P_posterior = (I - K * H) * P_prior
-
-                # 记录预测值
-                position = int(self.last_X_posterior[0][0])
-                self.add_motion_trail_pre(position)
-                self.active = self.lose_threshold
-                self.updated = True
-                return position
-        else:
-            self.active -= 1
-            if self.last_X_posterior is not None:
-                # 预测
-                X_prior = self.A * self.last_X_posterior  # A * X_prev
-                P_prior = self.A * self.P * self.A.T + self.Q  # A * P * A^T + Q
-
-                self.last_X_posterior = X_prior
-                self.P = P_prior  # 更新误差协方差矩阵
-
-                # 记录预测值
-                position = int(self.last_X_posterior[0][0])
-                self.add_motion_trail_pre(position)
-                return position
-            else:
-                return 0  # 默认返回0
-
-    def add_motion_trail_measure(self, measurement):
-        self.motion_trail_measure.append(int(measurement))
-        if len(self.motion_trail_measure) >= self.motion_trail_len:
-            self.motion_trail_measure.pop(0)
-
-    def add_motion_trail_pre(self, position):
-        self.motion_trail_pre.append(int(position))
-        if len(self.motion_trail_pre) >= self.motion_trail_len:
-            self.motion_trail_pre.pop(0)
-
-
 def correct_turn(img,z_correct,redsensor,distance,distance_aim):
     # 图像预处理
     img = img.to_grayscale()  # 转换为灰度图像
@@ -460,6 +214,9 @@ def color_detect(img,color_num):
 def line_detect(img,z_correct):
     # 图像预处理
     img = img.to_grayscale()  # 转换为灰度图像
+    img.gaussian(1)  # 应用高斯模糊，减少噪声
+    img.binary([THRESHOLD], invert=True)  # 二值化
+    img = img.erode(1)
 
 
     # 初始化 move_x 和 move_turn
@@ -522,7 +279,7 @@ def line_detect(img,z_correct):
         move_turn = sum(valid_points) / len(valid_points)
 #        print("test",move_turn)
         if abs(move_turn) < 50 :
-             move_turn = (valid_points[0]-valid_points[-1])*0.8
+             move_turn = (valid_points[0]-valid_points[-1])*0.6
 #        print ("move",move_turn)
 
     else:
@@ -568,31 +325,17 @@ def line_detect(img,z_correct):
 
     if y_speed != 0 and z_speed !=0:
     # 控制小车的运动
-        car.chassis_control(int(x_speed), int(y_speed), int(z_speed))#y向右为正 z逆时针为正
+        car.chassis_control(0.8*int(x_speed), 0.8*int(y_speed), 0.8*int(z_speed))#y向右为正 z逆时针为正
 #    print("y_speed: {}, z_speed: {}".format(y_speed, z_speed))
 
     return z_correct
 
 
 
-# ================== 主程序开始 ==================
-# 初始化卡尔曼滤波器
-# 定义状态转移矩阵 A，观测矩阵 H，过程噪声协方差 Q，观测噪声协方差 R
-# 这里为一维跟踪，状态为 [position, velocity]
-A = array([[1, 1],
-          [0, 1]])
-H = array([[1, 0]])
-Q = array([[0.1, 0],
-          [0, 0.1]])
-R = array([[1]])
-#增大Q或减小R，更相信观测值
-# 创建两个独立的 Tracker1D 实例，一个用于 move_x，一个用于 move_turn
-tracker_distance = Tracker1D(A, H, Q, R, ID=1, lose_threshold=20, motion_trail_len=10)
-
 
 
 # 定义用于检测暗色物体的灰度阈值
-THRESHOLD = (0, 35, -23, 15, -57, 0)  # 灰度阈值范围 (min_gray, max_gray, ...)
+THRESHOLD = (0, 45, -23, 15, -57, 0)  # 灰度阈值范围 (min_gray, max_gray, ...)
 
 # 初始化PID控制器，分别用于平移（左右移动）和转向（旋转角度）的控制
 # PID参数需要根据实际情况进行调整
@@ -634,105 +377,99 @@ distance_aim = 630
 while(True):
     clock.tick()  # 开始记录一帧的时间
     img = sensor.snapshot()  # 拍摄一帧图像
-    correct = line_detect(img, correct)
     flag = color.read_data()
-#    print(color_num)
-#    print("dir",direction)
+    print(color_num)
+    print("dir",direction)
+    print("mode",mode)
+    print("get_drop",get_drop)
     if flag != None:
-        if distance < 300 :
-            counter = turn_90(1,counter)
-
-#        if flag == b'$OKKKKK!':
-#            print("OK")
-#            if get_drop == -1:
-#                if color_num == 1:#蓝
-#                    if direction != 1:
-##                        time.sleep_ms(500)
-#                        direction = turn_180(direction)
-##                        time.sleep_ms(500)
-#                elif color_num == 2:#绿
-#                    if direction != 1:
-##                        time.sleep_ms(500)
-#                        direction = turn_180(direction)
-##                        time.sleep_ms(500)
-#                elif color_num == 3:#红
-#                    if direction != -1:
-##                        time.sleep_ms(500)
-#                        direction = turn_180(direction)
-##                        time.sleep_ms(500)
-#                elif color_num == 0:
-#                    continue
-#            mode = 0
-#        else :
-#            try:
-#                flag = flag.decode()[1:len(flag)-1]
-#            except ValueError:
-##                    print("输入的字符串无法转换为整数")
-#                continue
-#            if flag[0:8] == "DISTANCE" :
-#                try:
-##                    if len(distance_line)==5:
-##                        distance_line=distance_line[1:5]
-#                    filtered_distance = tracker_distance(float(flag[8:len(flag)-1]), True)
-#                    distance = int(filtered_distance)
-##                    distance_line.append(filtered_distance)
-##                    distance = sum(distance_line)/len(distance_line)
-#                except ValueError:
-##                    print("输入的字符串无法转换为整数")
-#                    continue
-#                print("distance",distance)
-#                print("mode",mode)
-#                #到达目标点 掉头抓/放
-#                if distance < 400 and mode == 0 and counter == color_num:#具体距离待定230
-#                    direction = turn_180(direction)
-#                    print("turn180")
-#                    mode = 4
-#                #未到目标点 转向巡线
-#                elif distance < 300 and mode == 0 and counter < color_num and color_num !=3:#具体距离待定
-#                    counter = turn_90(direction,counter)
-#                    mode = 5
-#                #未到目标点 转向巡线（放红色）
-#                elif color_num == 3 and distance < 230 and mode == 0 and color_num ==3:#具体距离待定
-#                    counter = turn_90(direction,counter)
-#                    counter +=2
-#                #掉头完毕到达目标点 停下来进行抓/放
-#                elif 620 < distance < 640 and mode == 2:#具体距离待定 630/620/ 650
-#                    car.chassis_control(0,0,0)
-#                    if counter_final == 3 and get_drop == 1:
-#                        turn_90((-1)*direction,counter)
-#                        mode = 3
-#                    color.send_arm(get_drop ,direction)
-#                    time.sleep(2)
-#                    get_drop = (-1)*get_drop
-#                    if get_drop == 1:
-#                        counter_final += 1
-#                    counter = 0
-#                    mode = 1
-#                elif distance < 200 and mode == 3:#具体距离待定200
-#                    mode = 4
-#                    car.chassis_control(0,0,0)
-#                    color.send_draw(color_num)
+        if flag == b'$OKKKKK!':
+            print("OK")
+            if get_drop == -1:
+                if color_num == 1:#蓝
+                    if direction != 1:
+#                        time.sleep_ms(500)
+                        direction = turn_180(direction)
+#                        time.sleep_ms(500)
+                elif color_num == 2:#绿
+                    if direction != 1:
+#                        time.sleep_ms(500)
+                        direction = turn_180(direction)
+#                        time.sleep_ms(500)
+                elif color_num == 3:#红
+                    if direction != -1:
+#                        time.sleep_ms(500)
+                        direction = turn_180(direction)
+#                        time.sleep_ms(500)
+                elif color_num == 0:
+                    continue
+            mode = 0
+        else :
+            try:
+                flag = flag.decode()[1:len(flag)-1]
+            except ValueError:
+#                    print("输入的字符串无法转换为整数")
+                continue
+            if flag[0:8] == "DISTANCE" :
+                try:
+                    if int(flag[8:len(flag)-1])<2000:
+                        distance = int(flag[8:len(flag)-1])
+                except ValueError:
+#                    print("输入的字符串无法转换为整数")
+                    continue
+                print("distance",distance)
+                print("mode",mode)
+                #到达目标点 掉头抓/放
+                if distance < 500 and mode == 0 and counter == color_num:#具体距离待定230
+                    direction = turn_180(direction)
+                    print("turn180")
+                    mode = 4
+                #未到目标点 转向巡线
+                elif distance < 300 and mode == 0 and counter < color_num and color_num !=3 and get_drop == -1:#具体距离待定
+                    counter = turn_90(direction,counter)
+                    mode = 5
+                #未到目标点 转向巡线（放红色）
+                elif color_num == 3 and distance < 230 and mode == 0:#具体距离待定
+                    counter = turn_90(direction,counter)
+                    counter +=2
+                #掉头完毕到达目标点 停下来进行抓/放
+                elif 620 < distance < 640 and mode == 2:#具体距离待定 630/620/ 650
+                    car.chassis_control(0,0,0)
+                    if counter_final == 3 and get_drop == 1:
+                        turn_90((-1)*direction,counter)
+                        mode = 3
+                    color.send_arm(get_drop ,direction)
+                    time.sleep(2)
+                    get_drop = (-1)*get_drop
+                    if get_drop == 1:
+                        counter_final += 1
+                    counter = 0
+                    mode = 1
+                elif distance < 200 and mode == 3:#具体距离待定200
+                    mode = 4
+                    car.chassis_control(0,0,0)
+                    color.send_draw(color_num)
 
 
 
-##    correct = correct_turn(img,direction,redsensor,distance,distance_aim)
+#    correct = correct_turn(img,direction,redsensor,distance,distance_aim)
 
-#    if mode == 0 :
-#        correct = line_detect(img, correct)
-#    elif mode == 1:
-#        color_num = color_detect(img,color_num)
-#    elif mode == 2: #掉头后进行修正速度为正常的0.5
-#        correct = correct_turn(img,direction,redsensor,distance,distance_aim)
-#    elif mode == 3:
-#        correct = correct_turn(img,direction,redsensor,distance,distance_aim)
-#    elif mode == 4:#掉头后进行修正distance
-#        if distance > 630:
-#            mode =2
-#        continue
-#    elif mode == 5:#转弯后进行修正distance
-#        if distance > 500:
-#            mode =0
-#        continue
+    if mode == 0 :
+        correct = line_detect(img, correct)
+    elif mode == 1 and get_drop == -1:
+        color_num = color_detect(img,color_num)
+    elif mode == 2: #掉头后进行修正速度为正常的0.5
+        correct = correct_turn(img,direction,redsensor,distance,distance_aim)
+    elif mode == 3:
+        correct = correct_turn(img,direction,redsensor,distance,distance_aim)
+    elif mode == 4:#掉头后进行修正distance
+        if distance > 400:
+            mode =2
+        continue
+    elif mode == 5:#转弯后进行修正distance
+        if distance > 400:
+            mode = 0
+        continue
 
 
 
