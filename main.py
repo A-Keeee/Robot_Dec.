@@ -430,7 +430,10 @@ while(True):
                     if get_drop == 1:
                         counter_final += 1
                     counter = 0
-                    mode = 1
+                    if get_drop == -1:
+                        mode = 1
+                    else :
+                        mode = 0
                 elif distance < 200 and mode == 3:#具体距离待定200
                     mode = 4
                     car.chassis_control(0,0,0)
@@ -442,7 +445,7 @@ while(True):
 
     if mode == 0 :
         correct = line_detect(img, correct)
-    elif mode == 1 and get_drop == -1:
+    elif mode == 1:
         color_num = color_detect(img,color_num)
     elif mode == 2: #掉头后进行修正速度为正常的0.5
         correct = correct_turn(img,direction,redsensor,distance,distance_aim)
