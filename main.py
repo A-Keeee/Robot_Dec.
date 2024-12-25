@@ -140,6 +140,20 @@ def turn_90(direction,counter):
     counter += 1
     return counter
 
+def begin_go(vx,vy):
+    car.chassis_control(vx,0,0)
+    time.sleep_ms(1500)
+    car.chassis_control(-vx*0.7,0,0)
+    time.sleep_ms(100)
+    car.chassis_control(0,vy,0) 
+    time.sleep_ms(1500) 
+    car.chassis_control(0,-vy*0.7,0)
+    time.sleep_ms(100)
+    car.chassis_control(vx,0,0)
+    time.sleep_ms(1500)
+    car.chassis_control(-vx*0.7,0,0)
+    time.sleep_ms(100)
+    car.chassis_control(0,0,0)
 
 def color_detect(img,color_num):
     red = (0, 100, 22, 53, -9, 41)  # 红色阈值
