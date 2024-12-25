@@ -170,20 +170,6 @@ def turn_90(direction,counter):
     car.chassis_control(0,0,0)
     return counter
 
-def begin_go(vx,vy):
-    car.chassis_control(vx,0,0)
-    time.sleep_ms(1500)
-    car.chassis_control(-vx*0.7,0,0)
-    time.sleep_ms(100)
-    car.chassis_control(0,vy,0) 
-    time.sleep_ms(1500) 
-    car.chassis_control(0,-vy*0.7,0)
-    time.sleep_ms(100)
-    car.chassis_control(vx,0,0)
-    time.sleep_ms(1500)
-    car.chassis_control(-vx*0.7,0,0)
-    time.sleep_ms(100)
-    car.chassis_control(0,0,0)
 
 def color_detect(img,color_num):
     red = (0, 100, 22, 53, -9, 41)  # 红色阈值
@@ -425,11 +411,11 @@ while(True):
                     print("turn180")
                     mode = 4
                 #未到目标点 转向巡线
-                elif distance < 300 and mode == 0 and counter < color_num and color_num !=3 and get_drop == -1:#具体距离待定
+                elif distance < 300 and mode == 0 and counter < color_num and color_num !=3:#具体距离待定
                     counter = turn_90(direction,counter)
                     mode = 5
                 #未到目标点 转向巡线（放红色）
-                elif color_num == 3 and distance < 230 and mode == 0:#具体距离待定
+                elif color_num == 3 and distance < 300 and mode == 0:#具体距离待定
                     counter = turn_90(direction,counter)
                     counter +=2
                 #掉头完毕到达目标点 停下来进行抓/放
@@ -444,7 +430,10 @@ while(True):
                     if get_drop == 1:
                         counter_final += 1
                     counter = 0
-                    mode = 1
+                    if get_drop == -1:
+                        mode = 1
+                    else :
+                        mode = 0
                 elif distance < 200 and mode == 3:#具体距离待定200
                     mode = 4
                     car.chassis_control(0,0,0)
@@ -456,7 +445,7 @@ while(True):
 
     if mode == 0 :
         correct = line_detect(img, correct)
-    elif mode == 1 and get_drop == -1:
+    elif mode == 1:
         color_num = color_detect(img,color_num)
     elif mode == 2: #掉头后进行修正速度为正常的0.5
         correct = correct_turn(img,direction,redsensor,distance,distance_aim)
