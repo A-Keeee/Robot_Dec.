@@ -354,15 +354,16 @@ while(True):
                 #未到目标点 转向巡线
                 elif distance < 200 and mode == 0 and counter < color_num and color_num !=3:#具体距离待定
                     counter = turn_90(direction,counter)
+                #未到目标点 转向巡线（放红色）
                 elif color_num == 3 and distance < 200 and mode == 0:#具体距离待定
                     counter = turn_90(direction,counter)
                     counter +=2
                 #掉头完毕到达目标点 停下来进行抓/放
                 elif distance < 200 and mode == 2:#具体距离待定
-                    if counter_final == 3:
+                    car.chassis_control(0,0,0)
+                    if counter_final == 3 and get_drop == 1:
                         turn_90((-1)*direction,counter)
                         mode = 3
-                    car.chassis_control(0,0,0)
                     color.send_arm(get_drop ,direction)
                     get_drop = (-1)*get_drop
                     if get_drop == 1:
@@ -373,10 +374,6 @@ while(True):
                     mode = 4
                     car.chassis_control(0,0,0)
                     color.send_draw(color_num)
-                    get_drop = (-1)*get_drop
-                    if get_drop == 1:
-                        counter_final += 1
-                    counter = 0
 
             
         
