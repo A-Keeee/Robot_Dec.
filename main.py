@@ -333,6 +333,7 @@ LED(1).on()  # 红灯
 LED(2).on()  # 绿灯
 LED(3).on()  # 蓝灯
 
+
 # 初始化摄像头传感器`
 sensor.reset()  # 重置摄像头
 sensor.set_vflip(True)  # 垂直翻转图像
@@ -342,7 +343,14 @@ sensor.set_framesize(sensor.HQVGA)  # 设置分辨率为QVGA (320*240)
 # sensor.set_windowing([0,20,80,40])  # 可选：设置窗口区域进行图像截取
 sensor.skip_frames(time=2000)  # 跳过前2000毫秒的帧，等待摄像头稳定
 clock = time.clock()  # 初始化时钟，用于计算帧率
-
+# car.chassis_control(1000,0,0)
+# time.sleep(0.8)
+# car.chassis_control(0,-1000,0)
+# time.sleep(0.8)
+# car.chassis_control(1000,0,0)
+# time.sleep(0.8)
+# car.chassis_control(0,0,0)
+# time.sleep(0.8)
 # 设置期望的移动和转向值
 desired_move_x = 0      # 期望的 move_x 为0，即中心对齐
 desired_move_turn = 0   # 期望的 move_turn 为0，即不旋转
@@ -358,16 +366,32 @@ counter_final = 0 #计数器记录抓取过的物品数量
 distance_line = []
 redsensor = 0 #0为默认 1是前进 2是右转 3是左转 4是后退
 distance_aim = 630
+while_num = 0
+dis_num = 0
+flag_num = 0
+start_time = 0
 
+count_stop = 0
+count_turnback = 0
+count_turn = 0
+count_write = 0
 # 主循环
 while(True):
+    time.sleep_ms(2)
+
+    # while_num += 1
+    # print("while_num",while_num)
     clock.tick()  # 开始记录一帧的时间
     img = sensor.snapshot()  # 拍摄一帧图像
     flag = color.read_data()
-    print(color_num)
-    print("dir",direction)
-    print("mode",mode)
-    print("get_drop",get_drop)
+    # if flag!= None:
+    #     flag_num +=1
+    #     print("flag_num",flag_num)
+    #     print("flag",flag)
+    # print(color_num)
+    # print("dir",direction)
+    # print("mode",mode)
+    # print("get_drop",get_drop)
     if flag != None:
         if flag == b'$OKKKKK!':
             print("OK")
@@ -396,26 +420,34 @@ while(True):
             except ValueError:
 #                    print("输入的字符串无法转换为整数")
                 continue
-            if flag[0:8] == "DISTANCE" :
+            # if flag[0:8] == "DISTANCE" :
+            if flag[0:3] == "DIS" :
                 try:
-                    if int(flag[8:len(flag)-1])<2000:
-                        distance = int(flag[8:len(flag)-1])
+                    # if int(flag[8:len(flag)-1])<2000:
+                    #     distance = int(flag[8:len(flag)-1])
+                    if int(flag[3:len(flag)-1])<2000:
+                        distance = int(flag[3:len(flag)-1])
+                    else :
+                        distance = 2000
                 except ValueError:
 #                    print("输入的字符串无法转换为整数")
                     continue
+                dis_num+=1
+                # print("dis_num",dis_num)
                 print("distance",distance)
+                # print("dTime:",time.ticks_ms()-start_time)
+                start_time = time.ticks_ms()
                 print("mode",mode)
-                #到达目标点 掉头抓/放
-                if distance < 500 and mode == 0 and counter == color_num:#具体距离待定230
+                if distance < 350 and mode == 0 and counter == color_num:#具体距离待定230
                     direction = turn_180(direction)
                     print("turn180")
                     mode = 4
                 #未到目标点 转向巡线
-                elif distance < 300 and mode == 0 and counter < color_num and color_num !=3:#具体距离待定
+                elif distance < 320 and mode == 0 and counter < color_num and color_num !=3:#具体距离待定
                     counter = turn_90(direction,counter)
                     mode = 5
                 #未到目标点 转向巡线（放红色）
-                elif color_num == 3 and distance < 300 and mode == 0:#具体距离待定
+                elif color_num == 3 and distance < 320 and mode == 0:#具体距离待定
                     counter = turn_90(direction,counter)
                     counter +=2
                 #掉头完毕到达目标点 停下来进行抓/放
@@ -434,14 +466,13 @@ while(True):
                         mode = 1
                     else :
                         mode = 0
-                elif distance < 200 and mode == 3:#具体距离待定200
+                elif distance < 160 and mode == 3:#具体距离待定200
                     mode = 4
                     car.chassis_control(0,0,0)
                     color.send_draw(color_num)
 
 
-
-#    correct = correct_turn(img,direction,redsensor,distance,distance_aim)
+ # correct = correct_turn(img,direction,redsensor,distance,distance_aim)
 
     if mode == 0 :
         correct = line_detect(img, correct)
@@ -460,8 +491,80 @@ while(True):
             mode = 0
         continue
 
+#              #到达目标点 掉头抓/放  #掉头
+#              if 340 < distance < 360 :
+#                  count_turnback += 1
+#              elif 330 < distance < 340 :
+#                  count_turn += 1
+#              elif 610 < distance < 640 :
+#                  count_stop += 1
+#              elif 140 < distance < 170 :
+#                  count_write +=1
 
 
+#              if count_turnback == 3 and mode == 0 and counter == color_num:#具体距离待定230
+#                  direction = turn_180(direction)
+#                  count_turnback = 0
+#                  print("turn180")
+#                  mode = 4
+#              #未到目标点 转向巡线   #转弯
+#              elif count_turn == 3 and mode == 0 and counter < color_num and color_num !=3:#具体距离待定
+#                  counter = turn_90(direction,counter)
+#                  count_turn = 0
+#                  mode = 5
+#              #未到目标点 转向巡线（放红色）
+#              elif color_num == 3 and count_turn == 3 and mode == 0:#具体距离待定
+#                  counter = turn_90(direction,counter)
+#                  counter +=2
+#                  count_turn = 0
+#              #掉头完毕到达目标点 停下来进行抓/放 #停
+#              elif count_stop == 3 and mode == 2:#具体距离待定 630/620/ 650
+#                  count_stop = 0
+#                  car.chassis_control(0,0,0)
+#                  if counter_final == 3 and get_drop == 1:
+#                      turn_90((-1)*direction,counter)
+#                      mode = 3
+#                      pass
+#                  color.send_arm(get_drop ,direction)
+#                  time.sleep(2)
+#                  get_drop = (-1)*get_drop
+#                  if get_drop == 1:
+#                      counter_final += 1
+#                  counter = 0
+#                  if get_drop == -1: # -1 有东西 1 没有东西
+#                      mode = 1
+#                  else :
+#                      mode = 0
+#              elif count_write == 3 and mode == 3:#具体距离待定200 #写字
+#                  count_write = 0
+#                  mode = 4
+#                  car.chassis_control(0,0,0)
+#                  color.send_draw(color_num)
+
+
+
+# # correct = correct_turn(img,direction,redsensor,distance,distance_aim)
+#  print("count_stop",count_stop)
+# # turn_90()
+#  if mode == 0 :
+#      correct = line_detect(img, correct)
+#  elif mode == 1:
+#      color_num = color_detect(img,color_num)
+#  elif mode == 2: #掉头后进行修正速度为正常的0.5
+#      correct = correct_turn(img,direction,redsensor,distance,distance_aim)
+#  elif mode == 3:
+#      correct = correct_turn(img,direction,redsensor,distance,distance_aim)
+#  elif mode == 4:#掉头后进行修正distance
+#      if count_stop == 3:
+#          count_stop = 0
+#          mode =2
+#      continue
+#  elif mode == 5:#转弯后进行修正distance
+#      if distance > 400:
+#          mode = 0
+#      continue
+
+#到达目标点 掉头抓/放
 
 
 
